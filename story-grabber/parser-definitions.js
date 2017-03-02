@@ -2,7 +2,7 @@
 module.exports = [
   { type: "HackerNews",
     title: "Hacker News",
-    minimumScore: 50,
+    minimumScore: 0,
     logo: "ycombinator.png" },
   /*{ type: "Reddit",
     title: "Reddit /r/programming",

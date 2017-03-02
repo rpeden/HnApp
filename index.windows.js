@@ -11,9 +11,16 @@ import {
   Text,
   View,
   TouchableOpacity,
-  WebView
+  TouchableHighlight,
+  Button as Bttn,
+  WebView,
+  ScrollView,
+  NativeModules,
+  Navigator
 } from 'react-native';
+
 import { getStories } from './story-grabber/story-grabber.js';
+import { fetchAndProcessPage } from './page-processor/page-processor.js';
 
 const Button = (props) => {
   const hmm = props;
@@ -23,6 +30,56 @@ const Button = (props) => {
   </TouchableOpacity>);
 }
 
+const TitleBar = ({title}) => {
+  const titleStyle = {
+    alignSelf: 'stretch',
+    backgroundColor: '#ccc',
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingLeft: 5
+  };
+
+  return (
+    <View style={titleStyle}>
+      <Text style={{fontSize: 20}}>{title}</Text>
+    </View>
+  )
+}
+
+const HNStory = ({storyTitle, domain, hovered, onEnter, onPress}) => {
+  const storyStyle = {
+    flexDirection: 'column',
+
+    backgroundColor: '#f2f2f2',
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingLeft: 5,
+    borderColor: '#bbb',
+    borderBottomWidth: 1
+  }
+
+  const hoverStyle = {
+    backgroundColor: '#e2e2e2'
+  };
+
+  const titleStyle = {
+    fontSize: 18
+  }
+
+  var style = storyStyle;
+  if(hovered) {
+    style = [storyStyle, hoverStyle]
+  }
+  return (
+      <View style={style} onMouseEnter={onEnter}>
+        <TouchableOpacity onPress={onPress}>
+          <Text style={titleStyle}>{storyTitle}</Text>
+          <Text>{domain}</Text>
+          <Text>{hovered && hovered.toString() || "no"}</Text>
+        </TouchableOpacity>
+      </View>
+  )
+}
 
 class Menu extends Component {
   render() {
@@ -33,12 +90,17 @@ class Menu extends Component {
   }
 }
 
-class HnApp extends Component {
+let navigator = undefined;
+
+class Stories extends Component {
   constructor() {
     super();
     this.state = {
-      text: "hi there"
-    }
+      text: "hi there",
+      stories: [], 
+      hovered: "nothing",
+      hoveredIndex: 0
+    }    
   }
 
   updateText() {
@@ -49,28 +111,105 @@ class HnApp extends Component {
       text: "loading..."
     });
     getStories().then((res) => {
-      var stories = res[0].stories.map((s) => s.title).join("\n");
+      var rawStories = res[0].stories;
+      var stories = rawStories.map((s) => s.title).join("\n");
       this.setState({
-        text: stories
+        text: stories,
+        stories: rawStories
       });
     })
+  }
+
+  componentWillMount() {
+    this.updateText();
+    navigator = this.props.navigator;
+  }
+
+  updateHover(title) {
+    this.setState({
+      hovered: title
+    });
+  }
+
+  updateHoverIndex(idx) {
+    this.setState({
+      hoveredIndex: idx
+    })
+  }
+
+  handlePress(address) {
+    const navigator = this.props.navigator;
+    fetchAndProcessPage(address).then(pageHtml => {
+      navigator.push({
+        title: 'Web',
+        content: pageHtml,
+        nextIndex: this.props.nextIndex
+      });
+    }) 
+  }
+
+  renderStories() {
+    return (
+      <ScrollView showsVerticalScrollIndicator={true} style={{alignSelf: 'stretch'}}>
+        {this.state.stories.map((s, idx) => <HNStory storyTitle={s.title} 
+                                                     onEnter={this.updateHoverIndex.bind(this,idx)} 
+                                                     hovered={idx == this.state.hoveredIndex} 
+                                                     onLeave={this.updateHoverIndex.bind(this,null)} 
+                                                     domain={s.domain} 
+                                                     key={idx} 
+                                                     onPress={this.handlePress.bind(this, s.address)}/>)}
+      </ScrollView>
+    );
   }
 
   render() {
     return (
       <View style={styles.window}>
-        <View style={styles.menu}>
-          <Text style={styles.lightText}>hi</Text>
-          <Button text="Load" onClick={this.updateText.bind(this)} />
-        </View>
+        
         <View style={styles.container}>
-          <WebView style={{height: 300, width: 500}} source={{uri: 'https://www.cbc.ca'}} />
-          <Text>
-            {this.state.text}
-          </Text>
+          <TitleBar title="Homepage" />
+          {this.renderStories()}
         </View>
+        
       </View>
     );
+  }
+}
+
+class PageView extends Component {
+  render() {
+    return (
+      <WebView source={{ html: this.props.content }} />
+    );
+  }
+}
+
+class HnApp extends Component {
+  render() {
+    return (
+      <View style={styles.window}>
+        <View style={styles.menu}>
+          <Text style={styles.lightText}>hi</Text>
+          <Button onPress={() => navigator.pop()}>Back</Button>
+        </View>
+        <Navigator
+            initialRoute={{ title: 'Stories', index: 0 }}
+            renderScene={(route, navigator) => {
+                index = route.index;
+                mainNavigator = navigator;
+                switch(route.title) {
+                    case 'Stories':
+                        return <Stories nextIndex={route.index + 1} navigator={navigator} />;
+                        break;
+                    case 'Web':
+                        return <PageView content={route.content}
+                                         nextIndex={route.index + 1} 
+                                         navigator={navigator}/>;
+                        break;
+                }
+      }}/>
+    </View>
+    )
   }
 }
 
@@ -97,8 +236,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
     backgroundColor: '#F5FCFF',
   },
   welcome: {

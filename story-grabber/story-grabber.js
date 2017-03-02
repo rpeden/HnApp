@@ -22,12 +22,15 @@ const hackerNewsParser = (dom, promise, minPoints, logo) => {
     const title = storyAnchor.text();
     // extract score/points
     const points = parseInt($(story).next().find(".score").text()) || 0;
-
+    // extract domain
+    const domain = $(story).find('.sitestr').text();
+    
     if (points >= minPoints) {
       parsedStories.push({
         title,
         address,
-        points
+        points,
+        domain
       });
     }
   });
